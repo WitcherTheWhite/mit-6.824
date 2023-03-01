@@ -20,29 +20,29 @@ func makeEmptyLog() Log {
 // 日志
 //
 type Log struct {
-	log []LogEntry
+	Entries []LogEntry
 }
 
 func (log *Log) lastIndex() int {
-	return len(log.log) - 1
+	return len(log.Entries) - 1
 }
 
 func (log *Log) append(entry LogEntry) {
-	log.log = append(log.log, entry)
+	log.Entries = append(log.Entries, entry)
 }
 
 func (log *Log) getTermOfIndex(index int) int {
-	return log.log[index].Term
+	return log.Entries[index].Term
 }
 
 func (log *Log) getLastLogTerm() int {
-	return log.log[log.lastIndex()].Term
+	return log.Entries[log.lastIndex()].Term
 }
 
 func (log *Log) getSliceFrom(index int) []LogEntry {
-	return log.log[index:]
+	return log.Entries[index:]
 }
 
 func (log *Log) getSliceTo(index int) []LogEntry {
-	return log.log[:index+1]
+	return log.Entries[:index+1]
 }

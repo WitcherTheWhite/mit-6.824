@@ -54,6 +54,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		fmt.Printf("%v 投票给了 %v\n", rf.me, args.CandidateId)
 		reply.VoteGranted = true
 		rf.votedFor = args.CandidateId
+		rf.persist()
 		rf.electionTimeReset()
 	} else {
 		reply.VoteGranted = false
@@ -73,6 +74,7 @@ func (rf *Raft) convertToFollower(newTerm int) {
 	rf.currentTerm = newTerm
 	rf.state = Follower
 	rf.votedFor = -1
+	rf.persist()
 }
 
 //
@@ -144,6 +146,7 @@ func (rf *Raft) startElectionL() {
 	rf.currentTerm++
 	rf.state = Candidate
 	rf.votedFor = rf.me
+	rf.persist()
 	fmt.Printf("%v 开始选举，任期 %v\n", rf.me, rf.currentTerm)
 	rf.requestVotesL()
 }

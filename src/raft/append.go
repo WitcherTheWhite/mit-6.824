@@ -48,7 +48,8 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	if rf.log.lastIndex() < args.PrevLogIndex || rf.log.getTermOfIndex(args.PrevLogIndex) != args.PrevLogTerm {
 		reply.Success = false
 		if rf.log.lastIndex() >= args.PrevLogIndex && rf.log.getTermOfIndex(args.PrevLogIndex) != args.PrevLogTerm {
-			rf.log.log = rf.log.getSliceTo(args.PrevLogIndex - 1)
+			rf.log.Entries = rf.log.getSliceTo(args.PrevLogIndex - 1)
+			rf.persist()
 		}
 		return
 	}
@@ -60,9 +61,11 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 			if rf.log.getTermOfIndex(index) == entry.Term {
 				continue
 			}
-			rf.log.log = rf.log.getSliceTo(index - 1)
+			rf.log.Entries = rf.log.getSliceTo(index - 1)
+			rf.persist()
 		}
 		rf.log.append(entry)
+		rf.persist()
 		fmt.Printf("%v 把日志 %v 加入了\n", rf.me, entry)
 	}
 
@@ -96,6 +99,7 @@ func (rf *Raft) advanceCommitL() {
 			rf.commitIndex = index
 		}
 	}
+	fmt.Println(rf.log)
 	rf.signalApplierL()
 }
 

@@ -27,6 +27,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	entry := LogEntry{command, rf.currentTerm}
 	index := rf.log.lastIndex() + 1
 	rf.log.append(entry)
+	rf.persist()
 	fmt.Printf("%v 在 %v 号添加了日志 %v\n", rf.me, index, entry)
 
 	rf.sendAppendsL(false)
@@ -45,8 +46,8 @@ func (rf *Raft) applier() {
 			applyMsg := ApplyMsg{}
 			applyMsg.CommandValid = true
 			applyMsg.CommandIndex = rf.lastApplied
-			applyMsg.Command = rf.log.log[rf.lastApplied].Command
-			fmt.Printf("%v 把日志 %v 写进了管道\n", rf.me, rf.log.log[rf.lastApplied])
+			applyMsg.Command = rf.log.Entries[rf.lastApplied].Command
+			fmt.Printf("%v 把日志 %v 写进了管道\n", rf.me, rf.log.Entries[rf.lastApplied])
 			rf.mu.Unlock()
 			rf.applyCh <- applyMsg
 			rf.mu.Lock()
