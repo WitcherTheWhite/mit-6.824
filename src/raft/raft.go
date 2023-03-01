@@ -19,7 +19,7 @@ package raft
 
 import (
 	//	"bytes"
-	"fmt"
+
 	"sync"
 	"sync/atomic"
 	"time"
@@ -51,32 +51,6 @@ type ApplyMsg struct {
 	SnapshotIndex int
 }
 
-//
-// 每个日志条目内包括状态机的指令，该条目被leader接受时的任期值(index从1开始)
-//
-type logEntry struct {
-	term int
-}
-
-//
-//
-//
-type AppendEntriesArgs struct {
-	Term     int // leader任期ID
-	LeaderId int //
-	//PrevLogIndex int
-	//PrevLogTerm  int
-	//entries      []logEntry
-}
-
-//
-//
-//
-type AppendEntriesReply struct {
-	Term    int
-	Success bool
-}
-
 type raftState interface{}
 type leader struct{}
 
@@ -104,19 +78,22 @@ type Raft struct {
 
 	currentTerm int // 服务器看到的最新任期值（初始值为0）
 	votedFor    int // 当前任期收到该服务器投票的候选人ID
-	//log         []logEntry // 所有的日志条目
+	log         Log // 所有的日志条目
 
 	// 所有server都要维护的状态
 
-	//commitIndex int // 已知被提交的日志条目中最高index值（初始值为0）
-	//lastApplied int // 应用到状态机的日志条目中最高index值（初始值为0）
+	commitIndex int // 已知被提交的日志条目中最高index值（初始值为0）
+	lastApplied int // 应用到状态机的日志条目中最高index值（初始值为0）
+
 	// leader维护的状态
-	//nextIndex         []int // 对于每个服务器，要发送给它的下个日志条目的index（初始值为leader上一个log的index + 1）
-	//matchIndex        []int // 对于每个服务器，服务器上已知被复制的日志条目中最高index值（初始值为0）
+
+	nextIndex  []int // 对于每个服务器，要发送给它的下个日志条目的index（初始值为leader上一个log的index + 1）
+	matchIndex []int // 对于每个服务器，服务器上已知被复制的日志条目中最高index值（初始值为0）
 
 	state        raftState
 	electionTime time.Time
-
+	applyCh      chan ApplyMsg
+	applyCond    *sync.Cond
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
 	// state a Raft server must maintain.
@@ -196,150 +173,6 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 }
 
 //
-// example RequestVote RPC arguments structure.
-// field names must start with capital letters!
-//
-type RequestVoteArgs struct {
-	// Your data here (2A, 2B).
-	Term        int // 候选人的任期
-	CandidateId int // 请求选票候选人的id
-	//LastLogIndex int // 候选人最近log entry的序号
-	//LastLogTerm  int // 候选人最近log entry的任期
-}
-
-//
-// example RequestVote RPC reply structure.
-// field names must start with capital letters!
-//
-type RequestVoteReply struct {
-	// Your data here (2A).
-	Term        int  // 候选人现在的任期，用于更新
-	VoteGranted bool // 值为true说明收到了选票
-}
-
-//
-// example RequestVote RPC handler.
-//
-func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
-	// Your code here (2A, 2B).
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-
-	fmt.Printf("服务器 %v 接收到来自 %v 投票请求了\n", rf.me, args.CandidateId)
-	reply.Term = rf.currentTerm
-	if args.Term < rf.currentTerm {
-		fmt.Println("请求没通过")
-		reply.VoteGranted = false
-		return
-	}
-	if args.Term > rf.currentTerm {
-		rf.electionTimeReset()
-		rf.state = Follower
-		rf.currentTerm = args.Term
-		rf.votedFor = -1
-	}
-	if rf.votedFor >= 0 && rf.votedFor != args.CandidateId {
-		fmt.Printf("服务器 %v 已经投票了\n", rf.me)
-		reply.VoteGranted = false
-		return
-	}
-	// if args.LastLogIndex < rf.lastApplied {
-	// 	reply.VoteGranted = false
-	// 	return
-	// }
-	reply.Term = rf.currentTerm
-	rf.votedFor = args.CandidateId
-	reply.VoteGranted = true
-	fmt.Printf("我是服务器 %v, 我投给了 %v\n", rf.me, rf.votedFor)
-}
-
-//
-// example code to send a RequestVote RPC to a server.
-// server is the index of the target server in rf.peers[].
-// expects RPC arguments in args.
-// fills in *reply with RPC reply, so caller should
-// pass &reply.
-// the types of the args and reply passed to Call() must be
-// the same as the types of the arguments declared in the
-// handler function (including whether they are pointers).
-//
-// The labrpc package simulates a lossy network, in which servers
-// may be unreachable, and in which requests and replies may be lost.
-// Call() sends a request and waits for a reply. If a reply arrives
-// within a timeout interval, Call() returns true; otherwise
-// Call() returns false. Thus Call() may not return for a while.
-// A false return can be caused by a dead server, a live server that
-// can't be reached, a lost request, or a lost reply.
-//
-// Call() is guaranteed to return (perhaps after a delay) *except* if the
-// handler function on the server side does not return.  Thus there
-// is no need to implement your own timeouts around Call().
-//
-// look at the comments in ../labrpc/labrpc.go for more details.
-//
-// if you're having trouble getting RPC to work, check that you've
-// capitalized all field names in structs passed over RPC, and
-// that the caller passes the address of the reply struct with &, not
-// the struct itself.
-//
-func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
-	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
-	return ok
-}
-
-//
-// 收到心跳处理
-//
-func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-
-	fmt.Printf("服务器 %v 收到leader %v 发来的心跳\n", rf.me, args.LeaderId)
-	if args.Term < rf.currentTerm {
-		reply.Term = rf.currentTerm
-		reply.Success = false
-		return
-	}
-	rf.electionTimeReset()
-	if args.Term > rf.currentTerm {
-		rf.state = Follower
-		rf.currentTerm = args.Term
-		rf.votedFor = -1
-	}
-	reply.Term = rf.currentTerm
-	reply.Success = true
-}
-
-func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
-	ok := rf.peers[server].Call("Raft.AppendEntries", args, reply)
-	return ok
-}
-
-//
-// the service using Raft (e.g. a k/v server) wants to start
-// agreement on the next command to be appended to Raft's log. if this
-// server isn't the leader, returns false. otherwise start the
-// agreement and return immediately. there is no guarantee that this
-// command will ever be committed to the Raft log, since the leader
-// may fail or lose an election. even if the Raft instance has been killed,
-// this function should return gracefully.
-//
-// the first return value is the index that the command will appear at
-// if it's ever committed. the second return value is the current
-// term. the third return value is true if this server believes it is
-// the leader.
-//
-func (rf *Raft) Start(command interface{}) (int, int, bool) {
-	index := -1
-	term := -1
-	isLeader := true
-
-	// Your code here (2B).
-
-	return index, term, isLeader
-}
-
-//
 // the tester doesn't halt goroutines created by Raft after each test,
 // but it does call the Kill() method. your code can use killed() to
 // check whether Kill() has been called. the use of atomic avoids the
@@ -382,6 +215,13 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.state = Follower
 	rf.electionTimeReset()
 
+	rf.log = makeEmptyLog()
+	rf.commitIndex = 0
+	rf.lastApplied = 0
+	rf.nextIndex = make([]int, len(rf.peers))
+	rf.matchIndex = make([]int, len(rf.peers))
+	rf.applyCond = sync.NewCond(&rf.mu)
+	rf.applyCh = applyCh
 	// Your initialization code here (2A, 2B, 2C).
 
 	// initialize from state persisted before a crash
@@ -390,5 +230,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	// start ticker goroutine to start elections
 	go rf.ticker()
 
+	go rf.applier()
 	return rf
 }
