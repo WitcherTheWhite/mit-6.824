@@ -28,7 +28,7 @@ import (
 	"6.824/labrpc"
 )
 
-//
+// ApplyMsg
 // as each Raft peer becomes aware that successive log entries are
 // committed, the peer should send an ApplyMsg to the service (or
 // tester) on the same server, via the applyCh passed to Make(). set
@@ -38,7 +38,6 @@ import (
 // in part 2D you'll want to send other kinds of messages (e.g.,
 // snapshots) on the applyCh, but set CommandValid to false for these
 // other uses.
-//
 type ApplyMsg struct {
 	CommandValid bool
 	Command      interface{}
@@ -64,9 +63,8 @@ type candidate struct{}
 
 var Candidate = candidate{}
 
-//
+// Raft
 // A Go object implementing a single Raft peer.
-//
 type Raft struct {
 	mu        sync.Mutex          // Lock to protect shared access to this peer's state
 	peers     []*labrpc.ClientEnd // RPC end points of all peers
@@ -76,9 +74,9 @@ type Raft struct {
 
 	// 所有server需要持久化的状态（在发送rpc响应之前持久化到本地）
 
-	currentTerm int // 服务器看到的最新任期值（初始值为0）
-	votedFor    int // 当前任期收到该服务器投票的候选人ID
-	log         Log // 所有的日志条目
+	currentTerm int  // 服务器看到的最新任期值（初始值为0）
+	votedFor    int  // 当前任期收到该服务器投票的候选人ID
+	log         *Log // 所有的日志条目
 
 	// 所有server都要维护的状态
 
@@ -100,7 +98,7 @@ type Raft struct {
 
 }
 
-// return currentTerm and whether this server
+// GetState return currentTerm and whether this server
 // believes it is the leader.
 func (rf *Raft) GetState() (int, bool) {
 
@@ -114,10 +112,8 @@ func (rf *Raft) GetState() (int, bool) {
 	return term, isleader
 }
 
-//
 // A service wants to switch to snapshot.  Only do so if Raft hasn't
 // have more recent info since it communicate the snapshot on applyCh.
-//
 func (rf *Raft) CondInstallSnapshot(lastIncludedTerm int, lastIncludedIndex int, snapshot []byte) bool {
 
 	// Your code here (2D).
@@ -134,7 +130,6 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 
 }
 
-//
 // the tester doesn't halt goroutines created by Raft after each test,
 // but it does call the Kill() method. your code can use killed() to
 // check whether Kill() has been called. the use of atomic avoids the
@@ -144,7 +139,6 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 // up CPU time, perhaps causing later tests to fail and generating
 // confusing debug output. any goroutine with a long-running loop
 // should call killed() to check whether it should stop.
-//
 func (rf *Raft) Kill() {
 	atomic.StoreInt32(&rf.dead, 1)
 	// Your code here, if desired.
@@ -155,7 +149,6 @@ func (rf *Raft) killed() bool {
 	return z == 1
 }
 
-//
 // the service or tester wants to create a Raft server. the ports
 // of all the Raft servers (including this one) are in peers[]. this
 // server's port is peers[me]. all the servers' peers[] arrays
@@ -165,7 +158,6 @@ func (rf *Raft) killed() bool {
 // tester or service expects Raft to send ApplyMsg messages.
 // Make() must return quickly, so it should start goroutines
 // for any long-running work.
-//
 func Make(peers []*labrpc.ClientEnd, me int,
 	persister *Persister, applyCh chan ApplyMsg) *Raft {
 	rf := &Raft{}

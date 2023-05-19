@@ -1,8 +1,6 @@
 package raft
 
-import "fmt"
-
-//
+// Start
 // the service using Raft (e.g. a k/v server) wants to start
 // agreement on the next command to be appended to Raft's log. if this
 // server isn't the leader, returns false. otherwise start the
@@ -15,7 +13,6 @@ import "fmt"
 // if it's ever committed. the second return value is the current
 // term. the third return value is true if this server believes it is
 // the leader.
-//
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
@@ -24,11 +21,11 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		return -1, rf.currentTerm, false
 	}
 
-	entry := LogEntry{command, rf.currentTerm}
+	entry := Entry{command, rf.currentTerm}
 	index := rf.log.lastIndex() + 1
 	rf.log.append(entry)
 	rf.persist()
-	fmt.Printf("%v 在 %v 号添加了日志 %v\n", rf.me, index, entry)
+	DPrintf("%v 在 %v 号添加了日志 %v\n", rf.me, index, entry)
 
 	rf.sendAppendsL(false)
 
@@ -47,7 +44,7 @@ func (rf *Raft) applier() {
 			applyMsg.CommandValid = true
 			applyMsg.CommandIndex = rf.lastApplied
 			applyMsg.Command = rf.log.Entries[rf.lastApplied].Command
-			fmt.Printf("%v 把日志 %v 写进了管道\n", rf.me, rf.log.Entries[rf.lastApplied])
+			DPrintf("%v 把日志 %v 写进了管道\n", rf.me, rf.log.Entries[rf.lastApplied])
 			rf.mu.Unlock()
 			rf.applyCh <- applyMsg
 			rf.mu.Lock()

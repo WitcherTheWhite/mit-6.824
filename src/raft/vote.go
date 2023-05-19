@@ -1,18 +1,13 @@
 package raft
 
 import (
-	"fmt"
 	"math/rand"
 	"time"
 )
 
-const HEART_BEAT_INTERVALS = time.Millisecond * 100 // leader发送心跳频率
-const ELECTION_TIME_OUT = HEART_BEAT_INTERVALS * 2  // 选举超时时间
-
-//
+// RequestVoteArgs
 // example RequestVote RPC arguments structure.
 // field names must start with capital letters!
-//
 type RequestVoteArgs struct {
 	// Your data here (2A, 2B).
 	Term         int // 候选人的任期
@@ -21,19 +16,17 @@ type RequestVoteArgs struct {
 	LastLogTerm  int // 候选人最后log entry的任期
 }
 
-//
+// RequestVoteReply
 // example RequestVote RPC reply structure.
 // field names must start with capital letters!
-//
 type RequestVoteReply struct {
 	// Your data here (2A).
 	Term        int  // 候选人现在的任期，用于更新
 	VoteGranted bool // 值为true说明收到了选票
 }
 
-//
+// RequestVote
 // example RequestVote RPC handler.
-//
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (2A, 2B).
 	rf.mu.Lock()
@@ -51,7 +44,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	if args.Term < rf.currentTerm {
 		reply.VoteGranted = false
 	} else if (rf.votedFor == -1 || rf.votedFor == args.CandidateId) && uptodate {
-		fmt.Printf("%v 投票给了 %v\n", rf.me, args.CandidateId)
+		DPrintf("%v 投票给了 %v\n", rf.me, args.CandidateId)
 		reply.VoteGranted = true
 		rf.votedFor = args.CandidateId
 		rf.persist()
@@ -67,9 +60,7 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 	return ok
 }
 
-//
 // 对于所有server，如果在rpc中看到任期大于当前任期，更新当前任期并转换为follower，重置投票权
-//
 func (rf *Raft) convertToFollower(newTerm int) {
 	rf.currentTerm = newTerm
 	rf.state = Follower
@@ -77,9 +68,7 @@ func (rf *Raft) convertToFollower(newTerm int) {
 	rf.persist()
 }
 
-//
 // candidate变为leader
-//
 func (rf *Raft) becomeLeaderL() {
 	rf.state = Leader
 
@@ -94,9 +83,7 @@ func (rf *Raft) becomeLeaderL() {
 	}
 }
 
-//
 // candidate请求选票，如果获得一半以上选票并且依然是candidate，则成为leader并发送一次心跳
-//
 func (rf *Raft) requestVote(peer int, args *RequestVoteArgs, vote *int) {
 	reply := RequestVoteReply{}
 	ok := rf.sendRequestVote(peer, args, &reply)
@@ -112,7 +99,7 @@ func (rf *Raft) requestVote(peer int, args *RequestVoteArgs, vote *int) {
 			*vote++
 			if *vote > len(rf.peers)/2 {
 				if rf.state == Candidate {
-					fmt.Printf("%v 在任期 %v 成为了leader\n", rf.me, rf.currentTerm)
+					DPrintf("%v 在任期 %v 成为了leader\n", rf.me, rf.currentTerm)
 					rf.becomeLeaderL()
 					rf.sendAppendsL(true)
 				}
@@ -121,9 +108,7 @@ func (rf *Raft) requestVote(peer int, args *RequestVoteArgs, vote *int) {
 	}
 }
 
-//
 // candidate向其他所有server发起投票请求
-//
 func (rf *Raft) requestVotesL() {
 	args := RequestVoteArgs{
 		rf.currentTerm,
@@ -139,32 +124,25 @@ func (rf *Raft) requestVotesL() {
 	}
 }
 
-//
 // 开始选举，当前任期增加1，转换为candidate，为自己投票
-//
 func (rf *Raft) startElectionL() {
 	rf.currentTerm++
 	rf.state = Candidate
 	rf.votedFor = rf.me
 	rf.persist()
-	fmt.Printf("%v 开始选举，任期 %v\n", rf.me, rf.currentTerm)
+	DPrintf("%v 开始选举，任期 %v\n", rf.me, rf.currentTerm)
 	rf.requestVotesL()
 }
 
-//
 // 重置选举时间，在基础超时时间基础上加上一个随机数保证各个服务器不会同时开始选举
-//
 func (rf *Raft) electionTimeReset() {
 	t := time.Now()
-	t = t.Add(ELECTION_TIME_OUT)
-	ms := rand.Int63() % 300
+	ms := rand.Int63()%300 + 50
 	t = t.Add(time.Duration(ms) * time.Millisecond)
 	rf.electionTime = t
 }
 
-//
 // 如果当前是leader定期发送心跳，若当前时间超过选举时间发起选举
-//
 func (rf *Raft) tick() {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
@@ -181,7 +159,7 @@ func (rf *Raft) tick() {
 }
 
 // The ticker go routine starts a new election if this peer hasn't received
-// heartsbeats recently.
+// heartbeats recently.
 func (rf *Raft) ticker() {
 	for !rf.killed() {
 		rf.tick()

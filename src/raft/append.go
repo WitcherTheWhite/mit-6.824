@@ -1,31 +1,25 @@
 package raft
 
-import "fmt"
-
-//
+// AppendEntriesArgs
 // AppendEntries请求参数
-//
 type AppendEntriesArgs struct {
-	Term         int        // leader任期
-	LeaderId     int        // leaderID
-	PrevLogIndex int        // entries之前的最后一条log
-	PrevLogTerm  int        // PrevLogIndex的term
-	Entries      []LogEntry // leader要复制到其他server的log
-	LeaderCommit int        // leader的commitIndex
+	Term         int     // leader任期
+	LeaderId     int     // leaderID
+	PrevLogIndex int     // entries之前的最后一条log
+	PrevLogTerm  int     // PrevLogIndex的term
+	Entries      []Entry // leader要复制到其他server的log
+	LeaderCommit int     // leader的commitIndex
 }
 
-//
+// AppendEntriesReply
 // AppendEntries响应参数
-//
 type AppendEntriesReply struct {
 	Term       int  // 任期
 	Success    bool // 是否成功
 	Conflicted bool // 日志是否有冲突
 }
 
-//
 // AppendEntries rpc handler
-//
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
@@ -66,7 +60,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		}
 		rf.log.append(entry)
 		rf.persist()
-		fmt.Printf("%v 把日志 %v 加入了\n", rf.me, entry)
+		DPrintf("%v 把日志 %v 加入了\n", rf.me, entry)
 	}
 
 	// rule 5
@@ -99,7 +93,6 @@ func (rf *Raft) advanceCommitL() {
 			rf.commitIndex = index
 		}
 	}
-	fmt.Println(rf.log)
 	rf.signalApplierL()
 }
 
@@ -115,7 +108,7 @@ func (rf *Raft) processAppendReplyTermL(peer int, args *AppendEntriesArgs, reply
 		}
 	} else if rf.nextIndex[peer] > 1 {
 		rf.nextIndex[peer]--
-		fmt.Printf("%v 日志不一致 nextindex回退一步\n", rf.me)
+		DPrintf("%v 日志不一致 nextindex回退一步\n", rf.me)
 		rf.sendAppendL(peer, false)
 	}
 	rf.advanceCommitL()
@@ -139,7 +132,7 @@ func (rf *Raft) sendAppendL(peer int, heartbeat bool) {
 		prevLogIndex = rf.log.lastIndex()
 	}
 
-	entries := make([]LogEntry, rf.log.lastIndex()-prevLogIndex)
+	entries := make([]Entry, rf.log.lastIndex()-prevLogIndex)
 	copy(entries, rf.log.getSliceFrom(prevLogIndex+1))
 	args := AppendEntriesArgs{
 		rf.currentTerm,
@@ -160,9 +153,7 @@ func (rf *Raft) sendAppendL(peer int, heartbeat bool) {
 	}()
 }
 
-//
 // leader发送心跳或者追加日志
-//
 func (rf *Raft) sendAppendsL(heartbeat bool) {
 	for i := range rf.peers {
 		if i != rf.me {
