@@ -16,7 +16,7 @@ type AppendEntriesArgs struct {
 type AppendEntriesReply struct {
 	Term       int  // 任期
 	Success    bool // 是否成功
-	Conflicted bool // 日志是否有冲突
+	Conflicted int  // 冲突日志index
 }
 
 // AppendEntries rpc handler
@@ -25,7 +25,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	defer rf.mu.Unlock()
 
 	rf.electionTimeReset()
-	reply.Conflicted = false
+	reply.Conflicted = -1
 	if args.Term > rf.currentTerm {
 		rf.convertToFollower(args.Term)
 	}
@@ -41,9 +41,8 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	// rule 2
 	if rf.log.lastIndex() < args.PrevLogIndex || rf.log.getTermOfIndex(args.PrevLogIndex) != args.PrevLogTerm {
 		reply.Success = false
-		if rf.log.lastIndex() >= args.PrevLogIndex && rf.log.getTermOfIndex(args.PrevLogIndex) != args.PrevLogTerm {
-			rf.log.Entries = rf.log.getSliceTo(args.PrevLogIndex - 1)
-			rf.persist()
+		if rf.log.lastIndex() < args.PrevLogIndex {
+			reply.Conflicted = rf.log.lastIndex()
 		}
 		return
 	}
@@ -106,6 +105,10 @@ func (rf *Raft) processAppendReplyTermL(peer int, args *AppendEntriesArgs, reply
 		if newmatch > rf.matchIndex[peer] {
 			rf.matchIndex[peer] = newmatch
 		}
+	} else if reply.Conflicted >= 0 {
+		rf.nextIndex[peer] = reply.Conflicted + 1
+		DPrintf("%v 触发了快速回退\n", rf.me)
+		rf.sendAppendL(peer, false)
 	} else if rf.nextIndex[peer] > 1 {
 		rf.nextIndex[peer]--
 		DPrintf("%v 日志不一致 nextindex回退一步\n", rf.me)
