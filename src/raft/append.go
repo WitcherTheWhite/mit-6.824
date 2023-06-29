@@ -39,7 +39,13 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	reply.Term = rf.currentTerm
 	// rule 2
-	if rf.log.lastIndex() < args.PrevLogIndex || rf.log.getTermOfIndex(args.PrevLogIndex) != args.PrevLogTerm {
+	var term int
+	if args.PrevLogIndex < rf.log.StartIndex {
+		term = rf.lastIncludedTerm
+	} else if args.PrevLogIndex <= rf.log.lastIndex() {
+		term = rf.log.getTermOfIndex(args.PrevLogIndex)
+	}
+	if rf.log.lastIndex() < args.PrevLogIndex || term != args.PrevLogTerm {
 		reply.Success = false
 		if rf.log.lastIndex() < args.PrevLogIndex {
 			reply.Conflicted = rf.log.lastIndex()
@@ -144,6 +150,10 @@ func (rf *Raft) sendAppendL(peer int, heartbeat bool) {
 		rf.log.getTermOfIndex(prevLogIndex),
 		entries,
 		rf.commitIndex,
+	}
+	if prevLogIndex < rf.log.StartIndex {
+		args.PrevLogIndex = rf.lastIncludedIndex
+		args.PrevLogTerm = rf.lastIncludedTerm
 	}
 	go func() {
 		reply := AppendEntriesReply{}

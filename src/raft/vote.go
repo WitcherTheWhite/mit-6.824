@@ -137,7 +137,7 @@ func (rf *Raft) startElectionL() {
 // 重置选举时间，在基础超时时间基础上加上一个随机数保证各个服务器不会同时开始选举
 func (rf *Raft) electionTimeReset() {
 	t := time.Now()
-	ms := rand.Int63()%300 + 50
+	ms := rand.Int63()%300 + 1000
 	t = t.Add(time.Duration(ms) * time.Millisecond)
 	rf.electionTime = t
 }

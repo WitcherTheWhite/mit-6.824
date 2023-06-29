@@ -43,8 +43,8 @@ func (rf *Raft) applier() {
 			applyMsg := ApplyMsg{}
 			applyMsg.CommandValid = true
 			applyMsg.CommandIndex = rf.lastApplied
-			applyMsg.Command = rf.log.Entries[rf.lastApplied].Command
-			DPrintf("%v 把日志 %v 写进了管道\n", rf.me, rf.log.Entries[rf.lastApplied])
+			applyMsg.Command = rf.log.Entries[rf.log.getIndexAtEntries(rf.lastApplied)].Command
+			DPrintf("%v 把日志 %v 写进了管道\n", rf.me, rf.log.Entries[rf.log.getIndexAtEntries(rf.lastApplied)])
 			rf.mu.Unlock()
 			rf.applyCh <- applyMsg
 			rf.mu.Lock()
